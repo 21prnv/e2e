@@ -25,7 +25,9 @@ import { docsLine, examples, helpSection, pc } from './help.ts';
 import { feedback, FEEDBACK_LIMITS, FEEDBACK_TYPES, type FeedbackReport } from './feedback.ts';
 import { guide } from './guide.ts';
 import { init } from './init.ts';
+import { addInitOptions, checkInitFlags, type InitFlagValues } from './init/flags.ts';
 import { mcp } from './mcp.ts';
+import { parseList, parseNames } from './parse-names.ts';
 import { SESSION_BOUNDS } from '../mcp/session.ts';
 import { PROVIDER_IDS } from '../oauth/providers.ts';
 import { runLogin, runLogout, runModels, type LoginFlags } from '../oauth/cli.ts';
@@ -49,26 +51,6 @@ function parseNonNegativeInt(value: string): number {
     throw new InvalidArgumentError('must be a nonnegative integer');
   }
   return parsed;
-}
-
-function parseList(value: string): string[] {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter((item) => item !== '');
-}
-
-/**
- * Names, comma-separated or repeated, each once. An empty value is a usage
- * error rather than an empty list: `--tag "$TAGS"` with the variable unset
- * must not select every test, and `--target ''` must not select every target.
- */
-function parseNames(noun: string): (value: string, previous?: string[]) => string[] {
-  return (value, previous = []) => {
-    const names = parseList(value);
-    if (names.length === 0) throw new InvalidArgumentError(`must name at least one ${noun}`);
-    return [...new Set([...previous, ...names])];
-  };
 }
 
 /**
@@ -286,11 +268,19 @@ function commandPath(command: Command): string {
   return names.join(' ');
 }
 
-/** The long names of the flags given on the command line: a closed set, never their values. */
+/**
+ * The long names of the flags given on the command line: a closed set, never
+ * their values. Of a `--x`/`--no-x` pair, which share one value, only the one
+ * that set it.
+ */
 function usedFlags(command: Command): string[] {
   return command.options
     .flatMap((option) =>
-      option.long !== undefined && command.getOptionValueSource(option.attributeName()) === 'cli' ? [option.long] : [],
+      option.long !== undefined &&
+      command.getOptionValueSource(option.attributeName()) === 'cli' &&
+      option.negate === (command.getOptionValue(option.attributeName()) === false)
+        ? [option.long]
+        : [],
     )
     .toSorted();
 }
@@ -437,21 +427,27 @@ function createProgram(version: string, telemetry: Telemetry): Command {
     telemetry.session(command, usedFlags(actionCommand));
   });
 
-  program
+  const initCommand = program
     .command('init')
     .summary('scaffold an ESM package, e2e.config.ts, an example test, .gitignore entries, and the agent skill')
     .description(
       'Scaffold a project without touching existing files: an ESM package.json, e2e.config.ts, tests/example.e2e.ts, .gitignore entries, and the e2e skill for coding agents. Prompts for the engine, for AI support, and for the skill directories, then offers to install the dependencies; --yes takes the defaults, with the skill in .agents/skills and .claude/skills linked to it.',
     )
     .argument('[directory]', 'project directory, created when missing (default: the current directory)')
-    .option('-y, --yes', 'skip the prompts: Playwright, AI on, no installation')
+    .option('-y, --yes', 'skip the prompts; each answer not given as a flag takes its default: web, vercel, every skill and MCP location, no installation');
+  addInitOptions(initCommand)
     .addHelpText(
       'after',
-      ['', examples(['e2e init', 'e2e init my-app', 'e2e init --yes']), '', docsLine('/reference/cli')].join('\n'),
+      [
+        '',
+        examples(['e2e init', 'e2e init my-app', 'e2e init --yes', 'e2e init --yes --gateway openrouter --skills .agents/skills --mcp none --install']),
+        '',
+        docsLine('/reference/cli'),
+      ].join('\n'),
     )
-    .action(async (directory: string | undefined, options: { yes?: boolean }) => {
+    .action(async (directory: string | undefined, options: InitFlagValues, command: Command) => {
       const { exitCode, ...outcome } = await init(resolvePath(process.cwd(), directory ?? '.'), {
-        ...options,
+        ...checkInitFlags(options, command),
         ...(directory === undefined ? {} : { directory }),
         // Prompts need a terminal on both ends; a pipe or a CI log has neither.
         interactive: process.stdin.isTTY === true && process.stdout.isTTY === true,
