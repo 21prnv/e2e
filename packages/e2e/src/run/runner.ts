@@ -48,7 +48,7 @@ import { allocateAppPorts } from './app-ports.ts';
 import { inProcessSpawner } from './in-process.ts';
 import { someSkippedAfterFailure, tracedResultIds, type ResultRecord, type RunError, type SerialGroupRecord } from './records.ts';
 import { runUnits } from './scheduler.ts';
-import { buildWorkPlans, plannedSlots, type TargetWorkPlan } from './units.ts';
+import { buildWorkPlans, plannedSlots, type TargetWorkPlan, type TimeLimit } from './units.ts';
 import { SessionStore } from './sessions.ts';
 import { outputLayout } from './output.ts';
 import type { RunnerOutput } from './process-output.ts';
@@ -60,7 +60,7 @@ import { setSecretRegistry } from '../secrets.ts';
 import { withAbort } from '../internal/time.ts';
 import type { BuiltinReporter, E2EConfig, FinishedRun, RecordingMode, Reporter, ReporterSummary } from '../types.ts';
 import { modelLabel } from '../config/agent.ts';
-import { positiveInt } from '../config/validate.ts';
+import { positiveInt, timerMs } from '../config/validate.ts';
 import { detectVcs, type VcsInfo } from '../internal/vcs.ts';
 import type { EnginePrepareResult } from '../engine/index.ts';
 import type { AppProcesses } from './managed-process.ts';
@@ -107,6 +107,13 @@ export interface RunOptions {
    * `failure-limit`, and the exit code is the failures' own.
    */
   maxFailures?: number | undefined;
+  /**
+   * Stops the run once it has spent this many milliseconds running tests
+   * (`--max-duration`), over the config's `maxDuration`: the tests running
+   * end as interrupted, the rest are skipped with cause `time-limit`, the
+   * run records a `RUN_TIMEOUT` error, and the exit code is 1.
+   */
+  maxDuration?: number | undefined;
   /**
    * Runs every selected test this many times (`--repeat-each`), each run a
    * result of its own with `repeat` 0 through `n - 1`. Setup tests run once.
@@ -476,9 +483,10 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
   };
 
   /**
-   * The failure limit was reached: the scheduler has stopped dispatching and
-   * interrupted its workers on its own. What it cut short is interrupted,
-   * but the run is not: the exit code is the failures', never 130.
+   * The failure or time limit was reached: the scheduler has stopped
+   * dispatching and interrupted its workers on its own. What it cut short is
+   * interrupted, but the run is not: the exit code is the failures' or
+   * `RUN_TIMEOUT`'s, never 130.
    */
   let stoppedEarly = false;
   const stopEarly = (failures: number, limit: number): void => {
@@ -796,6 +804,12 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
     const workerConfigPath = options.tests === undefined ? config.configPath : undefined;
     const inProcess = workerConfigPath === undefined;
     const runWorkers = inProcess ? 1 : config.workers;
+    const timeLimit: TimeLimit | undefined =
+      options.maxDuration !== undefined
+        ? { ms: options.maxDuration, source: '--max-duration' }
+        : config.maxDuration === undefined
+          ? undefined
+          : { ms: config.maxDuration, source: 'maxDuration' };
 
     // Provisioning: an engine that must fetch something onto this machine (a
     // first-run browser download) does it here, once per target, before the
@@ -921,6 +935,7 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
         plans,
         workers: runWorkers,
         ...(options.maxFailures === undefined ? {} : { maxFailures: options.maxFailures }),
+        ...(timeLimit === undefined ? {} : { timeLimit }),
         spawn,
         interruptGraceMs: config.timeout + config.cleanupTimeout,
         interruptSignal: interrupted,
@@ -938,6 +953,9 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
           onRunError: recordRunError,
           onRunAbort: abortRun,
           onFailureLimit: stopEarly,
+          onTimeLimit: () => {
+            stoppedEarly = true;
+          },
           onTestStart: (start, targetName) =>
             emit({ type: 'test-started', ...start, target: targetName }),
           onProgress: (pair, targetName, progress) =>
@@ -1106,6 +1124,7 @@ type SelectionRunOptions = Pick<
   | 'passWithNoTests'
   | 'output'
   | 'maxFailures'
+  | 'maxDuration'
   | 'repeatEach'
 >;
 
@@ -1170,6 +1189,7 @@ async function selectionInputs(options: SelectionRunOptions, config: ResolvedCon
  */
 function validateRunOptions(options: SelectionRunOptions): void {
   positiveInt(options.maxFailures, 'maxFailures');
+  timerMs(options.maxDuration, 'maxDuration');
   positiveInt(options.repeatEach, 'repeatEach');
 }
 

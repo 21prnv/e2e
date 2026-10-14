@@ -63,6 +63,17 @@ describe('resolveConfig', () => {
     }
   });
 
+  it('validates maxDuration as milliseconds without invalidating recordings', () => {
+    expect(resolve({}).maxDuration).toBeUndefined();
+    expect(resolve({ maxDuration: 900_000 }).maxDuration).toBe(900_000);
+    expect(resolve({ maxDuration: 900_000 }).configDigest).toBe(resolve({}).configDigest);
+    for (const value of [0, -1, 2.5, '15m']) {
+      expect(() => resolve(invalid({ maxDuration: value }))).toThrow(/maxDuration must be a positive safe integer of milliseconds/);
+    }
+    expect(resolve({ maxDuration: 2 ** 31 - 1 }).maxDuration).toBe(2 ** 31 - 1);
+    expect(() => resolve(invalid({ maxDuration: 2 ** 31 }))).toThrow('maxDuration must be at most 2147483647 milliseconds, got 2147483648');
+  });
+
   it('applies specification defaults', () => {
     const config = resolve({});
     expect(config.timeout).toBe(120_000);
