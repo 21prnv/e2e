@@ -679,6 +679,22 @@ describe('observation', () => {
     }
   });
 
+  it('reports the keyboard state the capture measured, and nothing when it measured none', async () => {
+    const h = harness();
+    await openAttempt(h);
+    expect((await h.engine.observe!(operation())).keyboardVisible).toBeUndefined();
+
+    const frame = { x: 0, y: 583, width: 390, height: 261 };
+    h.fake.respond('capture.snapshot', () => ({ ...SETTINGS_SNAPSHOT, keyboard: { kind: 'visible', frame } }));
+    expect((await h.engine.observe!(operation())).keyboardVisible).toBe(true);
+
+    h.fake.respond('capture.snapshot', () => ({ ...SETTINGS_SNAPSHOT, keyboard: { kind: 'absent' } }));
+    expect((await h.engine.observe!(operation())).keyboardVisible).toBe(false);
+
+    h.fake.respond('capture.snapshot', () => ({ ...SETTINGS_SNAPSHOT, keyboard: { kind: 'unmeasurable', reason: 'keyboard-frame-query-timeout' } }));
+    expect((await h.engine.observe!(operation())).keyboardVisible).toBeUndefined();
+  });
+
   it('measures the screen in the viewport the snapshot publishes, and in its tree when it publishes none', async () => {
     const h = harness();
     // The application node reads 390x844; a published viewport outranks it.
