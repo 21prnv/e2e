@@ -13,7 +13,7 @@ import { classifyError, ConfigurationError, InfrastructureError, serializeError,
 import { resultId, timestamp, uuidv7 } from '../internal/ids.ts';
 import { Deadline, MAX_TIMER_MS, withTimeout } from '../internal/time.ts';
 import { attemptVideo } from '../internal/recording-modes.ts';
-import type { TestFixtures } from '../types.ts';
+import type { Report, TestFixtures } from '../types.ts';
 import { createAttemptArtifacts, resultSegment } from './artifacts.ts';
 import { AttemptBudget } from './budget.ts';
 import { classifyAttemptStatus, type ClosingRecord, type TargetExecutor } from './execute.ts';
@@ -53,6 +53,7 @@ export interface StandaloneAttempt {
   readonly budget: AttemptBudget;
   readonly artifactsDir: string;
   readonly tracePath: string;
+  report(): Report | undefined;
   close(): Promise<readonly SerializedError[]>;
 }
 
@@ -198,6 +199,7 @@ export async function launchAttempt(
   const startedMs = Date.now();
   const tracePath = path.join(artifacts.dir, 'trace.md');
   let ending: Promise<readonly SerializedError[]> | undefined;
+  let report: Report | undefined;
   const close = (): Promise<readonly SerializedError[]> => {
     ending ??= (async () => {
       clearTimeout(expiry);
@@ -222,7 +224,7 @@ export async function launchAttempt(
       if (worker.kind === 'hosted') {
         try {
           const { error, status } = verdict();
-          await writeHostTrace({
+          report = await writeHostTrace({
             config, target, runId, testId: identity.testId, agent, tracePath, redact,
             title: processSecrets.redact(redact(options.name ?? target.name)),
             resultsDir: worker.resultsDir, segments: identity.segments,
@@ -246,6 +248,7 @@ export async function launchAttempt(
   return {
     runId, attemptId, fixtures: acquired.fixtures, agentRuntime: acquired.agentRuntime, session: opened, steps, budget,
     artifactsDir: artifacts.dir, tracePath, close,
+    report: () => report && structuredClone(report),
   };
 }
 

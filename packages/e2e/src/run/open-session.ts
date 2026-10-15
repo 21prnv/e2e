@@ -3,7 +3,7 @@
 import { discoverConfig, loadConfigModule, missingConfigError } from '../config/load.ts';
 import { resolveConfig, type ResolvedConfig } from '../config/resolve.ts';
 import { classifyError, ConfigurationError, E2EError, serializeError, type SerializedError } from '../internal/errors.ts';
-import type { E2EConfig, TestFixtures } from '../types.ts';
+import type { E2EConfig, Report, TestFixtures } from '../types.ts';
 import { allocateTargetPorts } from './app-ports.ts';
 import { processSecrets, registerStaticSecrets } from './secrecy.ts';
 import { selectTarget } from './select-target.ts';
@@ -60,6 +60,8 @@ export interface E2ESession<Fixtures extends object = Record<string, unknown>> e
   /** Absolute per-session trace path. Written before close settles successfully. */
   readonly tracePath: string;
   steps(): readonly StepRecord[];
+  /** The session Report after close and a successful trace write; otherwise undefined. */
+  report(): Report | undefined;
   /** Idempotent. Returns soft assertion, abandoned-operation, and cleanup failures. Disposal throws them as AggregateError. */
   close(): Promise<readonly SerializedError[]>;
 }
@@ -108,7 +110,7 @@ async function openHostWorker<Fixtures extends object>(options: OpenHostOptions)
           runId: attempt.runId, attemptId: attempt.attemptId, target: target.name,
           fixtures: attempt.fixtures as TestFixtures & Fixtures,
           artifactsDir: attempt.artifactsDir, tracePath: attempt.tracePath,
-          steps: () => attempt.steps.all(), close: attempt.close,
+          steps: () => attempt.steps.all(), report: attempt.report, close: attempt.close,
           [Symbol.asyncDispose]: () => dispose(attempt.close, 'session'),
         };
       }),

@@ -760,6 +760,7 @@ void (session.fixtures.device.tap satisfies () => void);
 void (session.artifactsDir satisfies string);
 void (session.tracePath satisfies string);
 void (session.steps() satisfies readonly StepRecord[]);
+void (session.report() satisfies Report | undefined);
 void (session.close() satisfies Promise<readonly SerializedError[]>);
 void (session satisfies AsyncDisposable);
 void (session[Symbol.asyncDispose]() satisfies PromiseLike<void>);
