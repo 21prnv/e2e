@@ -525,15 +525,32 @@ describe('snapshot projection', () => {
     expect(projected.index.map((entry) => entry.node.role)).toEqual(['searchbox', 'combobox', 'textbox', 'button', 'button']);
   });
 
-  it('reads the screen title from the navigation bar, its inner text, its identifier, or nothing', () => {
+  it('reads an iOS title from the bar identifier only when the bar shows that text', () => {
     expect(screenTitle(project(SETTINGS_NODES))).toBe('General');
-    expect(screenTitle(project([{ ref: '@e1', type: 'navigation-bar', identifier: 'About' }]))).toBe('About');
-    const innerText = project([
-      { ref: '@e1', depth: 0, type: 'navigation-bar' },
-      { ref: '@e2', depth: 1, type: 'button', label: 'Back' },
-      { ref: '@e3', depth: 1, type: 'static-text', label: 'About' },
+    const pushed = project([
+      { ref: '@e1', depth: 0, type: 'NavigationBar', label: 'Benchmark Examples', identifier: 'Today' },
+      { ref: '@e2', depth: 1, type: 'Button', label: 'Benchmark Examples' },
+      { ref: '@e3', depth: 1, type: 'StaticText', label: 'Today' },
     ]);
-    expect(screenTitle(innerText)).toBe('About');
+    expect(screenTitle(pushed)).toBe('Today');
+    expect(screenTitle(project([{ ref: '@e1', type: 'NavigationBar', identifier: 'About' }]))).toBeUndefined();
+    expect(screenTitle(project([{ ref: '@e1', depth: 0, type: 'NavigationBar', identifier: 'MyApp.InboxController' }, { ref: '@e2', depth: 1, type: 'Button', label: 'Back' }]))).toBeUndefined();
+    const untitled = project([
+      { ref: '@e1', depth: 0, type: 'NavigationBar', identifier: '_TtGC7SwiftUI32NavigationStackHosting' },
+      { ref: '@e2', depth: 1, type: 'Button', label: 'Share' },
+    ]);
+    expect(screenTitle(untitled)).toBeUndefined();
+    const textOnly = project([
+      { ref: '@e1', depth: 0, type: 'navigation-bar' },
+      { ref: '@e2', depth: 1, type: 'static-text', label: 'About' },
+    ]);
+    expect(screenTitle(textOnly)).toBeUndefined();
+    expect(screenTitle(project([{ ref: '@e1', type: 'NavigationBar', label: 'Settings', identifier: ' ' }]))).toBeUndefined();
     expect(screenTitle(project([{ ref: '@e1', type: 'button', label: 'Go' }]))).toBeUndefined();
+  });
+
+  it("never reads an Android toolbar's resource id as its title", () => {
+    const untitled = project([{ ref: 'e1', type: 'android.view.ViewGroup', identifier: 'com.example:id/toolbar' }]);
+    expect(screenTitle(untitled)).toBeUndefined();
   });
 });

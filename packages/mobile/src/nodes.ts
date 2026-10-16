@@ -548,23 +548,33 @@ export function screenRoot(roots: readonly SemanticNode[], viewport: ViewportSiz
 }
 
 /**
- * The visible screen's title: the navigation bar's (iOS) or toolbar's
- * (Android) own label, else the first text inside it, else its identifier
- * (UIKit names the bar after its title). Undefined when the screen has no
- * title bar, which is the honest answer for a launch screen, a full-screen
- * sheet, or Android's Settings home.
+ * The visible screen's title. On iOS, the navigation bar's identifier when a
+ * text inside the bar shows it: UIKit and SwiftUI put the title in both, while
+ * the bar's label is the back button on a pushed screen and an untitled
+ * screen's identifier is a class name with no such text. On Android, the
+ * toolbar's own label, else the first text inside it. A toolbar's resource id
+ * is never a title. Undefined when the screen has no title bar, which is the
+ * honest answer for a launch screen, a full-screen sheet, or Android's
+ * Settings home.
  */
 export function screenTitle(snapshot: ProjectedSnapshot): string | undefined {
   const bar =
     snapshot.index.find((entry) => entry.kind === 'navigation-bar') ??
     snapshot.index.find((entry) => ANDROID_TITLE_IDS.some((suffix) => entry.raw.identifier?.endsWith(suffix) === true));
   if (bar === undefined) return undefined;
-  if (bar.raw.label !== undefined && bar.raw.label.trim() !== '') return bar.raw.label;
-  const text = snapshot.index.find(
-    (entry) => entry.node.role === 'text' && entry.raw.label !== undefined && entry.raw.label.trim() !== '' && isWithin(entry, bar),
-  );
-  if (text !== undefined) return text.raw.label;
-  return bar.raw.identifier === undefined || bar.raw.identifier.trim() === '' ? undefined : bar.raw.identifier;
+  // Whitespace is not a title. Trimming stays here: nonEmpty feeds every node's name.
+  const textOf = (value: string | undefined): string | undefined => (value === undefined || value.trim() === '' ? undefined : value);
+  if (bar.kind === 'navigation-bar') {
+    const identifier = textOf(bar.raw.identifier);
+    const shown =
+      identifier !== undefined &&
+      snapshot.index.some((entry) => entry.node.role === 'text' && entry.raw.label === identifier && isWithin(entry, bar));
+    return shown ? identifier : undefined;
+  }
+  const label = textOf(bar.raw.label);
+  if (label !== undefined) return label;
+  const text = snapshot.index.find((entry) => entry.node.role === 'text' && textOf(entry.raw.label) !== undefined && isWithin(entry, bar));
+  return text?.raw.label;
 }
 
 /** True when `entry` is a strict descendant of `ancestor`. */
