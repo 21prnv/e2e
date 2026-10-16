@@ -279,6 +279,9 @@ selectors: the runner validates and authorizes every tool call first.
 
 ## The replay cache
 
+Replay reports expose the original model as `step.cache.recordedBy` when
+available; older recordings omit it. Use `--no-cache` to evaluate a new model.
+
 A passing `agent.act` saves its actions once a later check verifies the
 outcome; the next run replays them without model calls, and the live agent
 continues from the current screen when the app or final state no longer

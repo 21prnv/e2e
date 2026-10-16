@@ -93,6 +93,10 @@ agent. Each of these changes causes a miss:
 Changing the model doesn't cause a miss, and neither does upgrading the
 engine: a node the new version resolves differently misses at replay.
 
+Use `--no-cache` to evaluate a new model. Replays expose
+`step.cache.recordedBy` when the entry has provenance; older or unattributed
+entries omit it.
+
 A timestamp or a fresh email address would miss on every run. Wrap such
 values in `unique()`, and the runner puts in the current value at replay:
 

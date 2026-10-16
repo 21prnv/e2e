@@ -482,6 +482,8 @@ export interface StepCacheInfo {
    * screen the recording started on against the one the step did.
    */
   detail?: string;
+  /** Configured model when the consulted entry was recorded; absent on older entries. */
+  recordedBy?: { readonly provider: string; readonly model: string };
 }
 
 type TraceReplayMissReason = 'retry' | 'no-entry' | 'invalid-entry' | 'truncated' | 'wrong-context';

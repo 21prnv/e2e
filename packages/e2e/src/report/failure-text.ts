@@ -9,6 +9,7 @@
  */
 
 import path from 'node:path';
+import { modelLabel } from '../config/agent.ts';
 import { isLoopbackHost } from '../internal/urls.ts';
 import type { AppLogSource } from '../engine/index.ts';
 import type { AppLogRecord, StepCacheInfo, StepCacheRecord, StepEvent, StepTurn } from '../run/steps.ts';
@@ -357,6 +358,7 @@ function cacheLine(cache: StepCacheRecord, cacheDir: string | undefined): string
         : `no replay: ${CACHE_REASON_TEXT[cache.reason ?? 'no-entry']}`;
   const parts = [
     `cache: ${how}`,
+    ...(cache.recordedBy === undefined ? [] : [`recorded with ${code(modelLabel({ provider: cache.recordedBy.provider, id: cache.recordedBy.model }), MAX_DETAIL_CHARS)}`]),
     ...(cache.detail === undefined ? [] : [cell(cache.detail, MAX_DETAIL_CHARS)]),
     ...(cache.write === undefined ? [] : [CACHE_WRITE_TEXT[cache.write]]),
     ...(cache.notRecorded === 'param-collision' ? ['nothing recorded: a unique() value collides with another param'] : []),
