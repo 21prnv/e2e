@@ -37,6 +37,8 @@ const EXAMPLES: Record<string, string> = {
   'docs/examples/quickstart/e2e.command.config.ts': 'docs/web.mdx',
   'docs/examples/mobile/device-provider.ts': 'docs/mobile.mdx',
   'docs/examples/mobile/device-cloud-provider.ts': 'docs/mobile.mdx',
+  'docs/examples/mobile/testmu.config.ts': 'docs/integrations/testmu.mdx',
+  'docs/examples/mobile/testmu.e2e.ts': 'docs/integrations/testmu.mdx',
   'docs/examples/web/browser-provider.ts': 'docs/browser.mdx',
   'docs/examples/models/e2e.decision.config.ts': 'docs/decision-models.mdx',
   'docs/examples/models/tests/decision.e2e.ts': 'docs/decision-models.mdx',

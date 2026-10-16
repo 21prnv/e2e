@@ -124,6 +124,10 @@ suites that consume the built packages the way a user would.
   keeps it current on reruns, writing the same text to the job summary. It
   reads the token, event, and repository when the run finishes, never at
   config load, and renders the page with `renderMarkdownReport` from `e2e`.
+- `packages/testmu` — the published `@e2e-dev/testmu` package: TestMu AI
+  (formerly LambdaTest) hosted Android emulators, iOS simulators, and real
+  devices for the mobile engine (`DeviceProvider`), through agent-device's
+  `@agent-device/testmu` plugin.
 - `apps/testbed` (`@e2e-dev/testbed`, private) — dogfood project that
   consumes the **built** packages like a real user would: the playground app
   where every runner feature (sessions, routes, downloads, frames, uploads,

@@ -421,7 +421,8 @@ or a phone works. The provider leases one device per worker slot when the
 run starts, and releases it when the run ends.
 
 For [EAS Simulators](/integrations/eas), use `easSimulators()` from
-`@e2e-dev/eas`. For another service, write a provider of a few dozen lines,
+`@e2e-dev/eas`. For [TestMu AI](/integrations/testmu), use `testmu()` from
+`@e2e-dev/testmu`. For another service, write a provider of a few dozen lines,
 such as `hostedDevices` in the example below:
 
 ```ts
@@ -562,7 +563,8 @@ export function hostedDevices(options: { serviceUrl: string; image: string }): D
 <Accordion title="Example: a device cloud that agent-device supports">
 A device cloud that agent-device itself speaks to needs no session API of
 your own. The provider allocates a lease through a daemon it starts for the
-run, and gives the worker the lease scope as `client`.
+run, and gives the worker the lease scope as `client`. `testmu()` from
+`@e2e-dev/testmu` works this way for [TestMu AI](/integrations/testmu).
 
 ```ts title="device-cloud-provider.ts" expandable
 import { createAgentDeviceClient } from 'agent-device';

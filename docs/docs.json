@@ -184,7 +184,8 @@
               "integrations/lightpanda",
               "integrations/eas",
               "integrations/smol",
-              "integrations/limrun"
+              "integrations/limrun",
+              "integrations/testmu"
             ]
           },
           {
