@@ -12,6 +12,7 @@ const runMock = vi.hoisted(() => vi.fn());
 const listMock = vi.hoisted(() => vi.fn());
 const initMock = vi.hoisted(() => vi.fn());
 const watchMock = vi.hoisted(() => vi.fn());
+const upgradeMock = vi.hoisted(() => vi.fn());
 
 // The suite runs from the repository; these tests cover an installed CLI, where telemetry is on.
 vi.mock('../../src/telemetry/checkout.ts', () => ({ runsFromCheckout: () => false }));
@@ -20,6 +21,10 @@ vi.mock('../../src/run/runner.ts', () => ({ run: runMock }));
 vi.mock('../../src/cli/watch.ts', () => ({ watchSession: watchMock }));
 vi.mock('../../src/cli/init.ts', () => ({
   init: initMock,
+}));
+vi.mock('../../src/cli/upgrade.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../src/cli/upgrade.ts')>()),
+  upgrade: upgradeMock,
 }));
 
 const { main } = await import('../../src/cli/index.ts');
@@ -43,6 +48,11 @@ function initOutcome(exitCode: number, overrides: Record<string, unknown> = {}) 
     install: false,
     ...overrides,
   };
+}
+
+/** What a mocked `upgrade` hands back: the exit code, and nothing learned. */
+function upgradeOutcome(exitCode: number) {
+  return { exitCode, result: exitCode === 0 ? 'upgraded' : 'install-failed', target: { kind: 'tag', tag: 'latest' }, fromVersion: null, toVersion: null, manager: null, siblings: [], moved: 0, linked: 0 };
 }
 
 function lastRunOptions(): RunOptions {
@@ -71,6 +81,8 @@ beforeEach(() => {
   initMock.mockResolvedValue(initOutcome(0));
   watchMock.mockReset();
   watchMock.mockResolvedValue(0);
+  upgradeMock.mockReset();
+  upgradeMock.mockResolvedValue(upgradeOutcome(0));
   process.exitCode = undefined;
   stderrSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
   stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
@@ -894,6 +906,34 @@ describe('e2e feedback', () => {
   });
 });
 
+describe('e2e upgrade argument parsing', () => {
+  it('upgrades to latest by default, under either name', async () => {
+    for (const name of ['upgrade', 'update']) {
+      upgradeMock.mockClear();
+      await invoke(name);
+      expect(upgradeMock).toHaveBeenCalledExactlyOnceWith({ target: { kind: 'tag', tag: 'latest' } });
+      expect(process.exitCode).toBe(0);
+    }
+  });
+
+  it('passes a version, a dist-tag, and --dry-run through, and exits with the upgrade\'s code', async () => {
+    upgradeMock.mockResolvedValue(upgradeOutcome(3));
+    await invoke('update', 'v0.22.0', '--dry-run');
+    expect(upgradeMock).toHaveBeenCalledExactlyOnceWith({ target: { kind: 'version', version: '0.22.0' }, dryRun: true });
+    expect(process.exitCode).toBe(3);
+    upgradeMock.mockClear();
+    await invoke('upgrade', 'nightly');
+    expect(upgradeMock).toHaveBeenCalledExactlyOnceWith({ target: { kind: 'tag', tag: 'nightly' } });
+  });
+
+  it('refuses a range with exit 2 and never upgrades', async () => {
+    await invoke('upgrade', '^0.22.0');
+    expect(upgradeMock).not.toHaveBeenCalled();
+    expect(process.exitCode).toBe(2);
+    expect(written(stderrSpy)).toContain("error: command-argument value '^0.22.0' is invalid for argument 'version'. must be a version such as 0.22.0 or a dist-tag");
+  });
+});
+
 describe('olderThan', () => {
   it.each([
     ['0.19.0', '0.20.0', true],
@@ -1076,6 +1116,26 @@ describe('e2e telemetry', () => {
     expect(session!.properties['flags']).toEqual(['--endpoint', '--gateway', '--no-install', '--skills', '--yes']);
     expect(JSON.stringify(printedEvents())).not.toContain('secret');
     expect(JSON.stringify(printedEvents())).not.toContain('.claude');
+  });
+
+  it('records the upgrade event from the outcome upgrade returns, under either name', async () => {
+    upgradeMock.mockResolvedValue({
+      exitCode: 2,
+      result: 'unknown-target',
+      target: { kind: 'tag', tag: 'beta' },
+      fromVersion: '0.20.0',
+      toVersion: null,
+      manager: 'npm',
+      siblings: [],
+      moved: 0,
+      linked: 0,
+    });
+    await invoke('update', 'beta', '--dry-run');
+    const events = printedEvents();
+    expect(events.map((event) => event.event)).toEqual(['e2e_cli_session', 'e2e_upgrade_completed']);
+    expect(events[0]!.properties).toMatchObject({ command: 'upgrade', flags: ['--dry-run'], exit_code: 2 });
+    expect(events[1]!.properties).toMatchObject({ result: 'unknown-target', target: 'beta', from_version: '0.20.0', to_version: null });
+    expect(process.exitCode).toBe(2);
   });
 
   it('records the init event from the outcome init returns', async () => {

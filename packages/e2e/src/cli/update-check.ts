@@ -1,6 +1,6 @@
 /**
  * The upgrade notice: after a command on a terminal, two lines naming a newer
- * e2e release and the command that installs it. The registry is asked at most
+ * e2e release and the `e2e upgrade` command that installs it. The registry is asked at most
  * once a day, in the background while the command runs, and the answer is kept
  * in `update-check.json` beside the telemetry preferences, so every command in
  * between reminds without a request. Nothing in CI, from a source checkout,
@@ -8,19 +8,13 @@
  * or one of the telemetry opt-outs set: the request is not needed to run.
  */
 
-import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import picocolors from 'picocolors';
 import { isCiMode } from '../config/resolve.ts';
 import { writeFileAtomicSync } from '../internal/atomic-write.ts';
 import { envFlag } from '../internal/env.ts';
-import {
-  addDevDependencyCommand,
-  detectPackageManager,
-  fieldManager,
-  lockfileManager,
-  type PackageManager,
-} from '../internal/package-manager.ts';
+import { detectWorkspacePackageManager, execCommand, readPackageManifest } from '../internal/package-manager.ts';
 import { isPlainObject } from '../internal/options.ts';
 import { isRelease, latestRelease, olderThan } from '../internal/release.ts';
 import { telemetryConfigDir } from '../telemetry/store.ts';
@@ -30,8 +24,11 @@ const CHECK_INTERVAL_MS = 86_400_000;
 /** The longest the check may hold the process after the command, once a day at most. */
 const FETCH_TIMEOUT_MS = 1_500;
 const CHANGELOG_URL = 'https://github.com/tester-army/e2e/blob/main/packages/e2e/CHANGELOG.md';
-/** `mcp` speaks JSON-RPC on stdio to a client, not to a person. */
-const SILENT_COMMANDS: ReadonlySet<string> = new Set(['mcp']);
+/**
+ * `mcp` speaks JSON-RPC on stdio to a client, not to a person. `upgrade` is
+ * the step the notice asks for; the version running it is the old one.
+ */
+const SILENT_COMMANDS: ReadonlySet<string> = new Set(['mcp', 'upgrade']);
 
 interface CheckRecord {
   readonly checkedAt: number;
@@ -69,38 +66,25 @@ function readRecord(filePath: string): CheckRecord | undefined {
   }
 }
 
-/** The `packageManager` field of the package.json in `dir`; null when there is no package.json. */
-function packageManagerField(dir: string): string | undefined | null {
-  const manifestPath = path.join(dir, 'package.json');
-  if (!existsSync(manifestPath)) return null;
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(manifestPath, 'utf8'));
-    return isPlainObject(parsed) && typeof parsed['packageManager'] === 'string' ? parsed['packageManager'] : undefined;
-  } catch {
-    return undefined;
+/**
+ * `e2e upgrade`, run through the package manager of the package it would
+ * upgrade: the nearest one at or above `cwd` that lists e2e, else the nearest
+ * one (its workspace's manager, for a workspace member).
+ */
+function upgradeCommand(cwd: string, env: NodeJS.ProcessEnv): string {
+  let nearest: string | undefined;
+  let project: string | undefined;
+  for (let dir = cwd; project === undefined; dir = path.dirname(dir)) {
+    const manifest = readPackageManifest(dir);
+    if (manifest !== undefined) nearest ??= dir;
+    if (manifest !== undefined && DEPENDENCY_SECTIONS.some((section) => isPlainObject(manifest[section]) && manifest[section]['e2e'] !== undefined)) project = dir;
+    if (path.dirname(dir) === dir) break;
   }
+  return execCommand(detectWorkspacePackageManager(project ?? nearest ?? cwd, env).manager, 'e2e upgrade');
 }
 
-/**
- * The command that upgrades e2e from `cwd`. The nearest `packageManager`
- * field or lockfile at or above it names the manager, so a package inside a
- * monorepo gets the workspace's. pnpm refuses to add to a workspace root
- * without `-w`.
- */
-function installCommand(cwd: string, env: NodeJS.ProcessEnv): string {
-  let manager: PackageManager | undefined;
-  let packageDir: string | undefined;
-  for (let dir = cwd; ; dir = path.dirname(dir)) {
-    const field = packageManagerField(dir);
-    if (field !== null) packageDir ??= dir;
-    manager = fieldManager(field ?? undefined) ?? lockfileManager(dir);
-    if (manager !== undefined || path.dirname(dir) === dir) break;
-  }
-  manager ??= detectPackageManager(cwd, undefined, env);
-  const command = addDevDependencyCommand(manager, 'e2e@latest');
-  const workspaceRoot = packageDir !== undefined && existsSync(path.join(packageDir, 'pnpm-workspace.yaml'));
-  return manager === 'pnpm' && workspaceRoot ? `${command} -w` : command;
-}
+const DEPENDENCY_SECTIONS = ['dependencies', 'devDependencies', 'optionalDependencies'] as const;
+
 
 export class UpdateCheck {
   private readonly options: UpdateCheckOptions;
@@ -163,7 +147,7 @@ export class UpdateCheck {
     await this.pending;
     const latest = this.latest;
     if (latest === undefined || !olderThan(this.options.version, latest)) return;
-    const install = installCommand(this.options.cwd ?? process.cwd(), this.options.env ?? process.env);
+    const install = upgradeCommand(this.options.cwd ?? process.cwd(), this.options.env ?? process.env);
     const write = this.options.write ?? ((text: string) => void process.stderr.write(text));
     write(
       [

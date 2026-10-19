@@ -64,7 +64,7 @@ describe('update check', () => {
     await check.notify();
     expect(fetch).toHaveBeenCalledOnce();
     expect(output()).toContain('0.21.2 → 0.22.0');
-    expect(output()).toContain('pnpm add -D e2e@latest');
+    expect(output()).toContain('Run pnpm exec e2e upgrade to update.');
     expect(record(options.configDir!)).toEqual({ checkedAt: NOW, latest: '0.22.0' });
   });
 
@@ -72,18 +72,19 @@ describe('update check', () => {
     [
       'a workspace package, from the lockfile at the root',
       (root) => {
+        writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - apps/*\n');
         writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
         return workspacePackage(root);
       },
-      'pnpm add -D e2e@latest',
+      'pnpm exec e2e upgrade',
     ],
     [
       'a workspace package, from the packageManager field at the root',
       (root) => {
-        writeFileSync(path.join(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.5.0' }));
+        writeFileSync(path.join(root, 'package.json'), JSON.stringify({ packageManager: 'yarn@4.5.0', workspaces: ['apps/*'] }));
         return workspacePackage(root);
       },
-      'yarn add -D e2e@latest',
+      'yarn e2e upgrade',
     ],
     [
       'the root of a pnpm workspace',
@@ -93,9 +94,41 @@ describe('update check', () => {
         writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
         return root;
       },
-      'pnpm add -D e2e@latest -w',
+      'pnpm exec e2e upgrade',
     ],
-  ])('names the install command for %s', async (_name, project, command) => {
+    [
+      'a project under a workspace that does not list it',
+      (root) => {
+        writeFileSync(path.join(root, 'pnpm-workspace.yaml'), 'packages:\n  - packages/*\n');
+        writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
+        return workspacePackage(root);
+      },
+      'npm exec -- e2e upgrade',
+    ],
+    [
+      'a package nested in the project that lists e2e',
+      (root) => {
+        writeFileSync(path.join(root, 'package.json'), JSON.stringify({ devDependencies: { e2e: '^0.21.2' } }));
+        writeFileSync(path.join(root, 'pnpm-lock.yaml'), '');
+        const tool = path.join(root, 'tools', 'codegen');
+        mkdirSync(tool, { recursive: true });
+        writeFileSync(path.join(tool, 'package.json'), '{}');
+        writeFileSync(path.join(tool, 'package-lock.json'), '{}');
+        return tool;
+      },
+      'pnpm exec e2e upgrade',
+    ],
+    [
+      'a directory inside a project',
+      (root) => {
+        writeFileSync(path.join(root, 'package.json'), '{}');
+        writeFileSync(path.join(root, 'bun.lock'), '');
+        mkdirSync(path.join(root, 'tests'));
+        return path.join(root, 'tests');
+      },
+      'bun run e2e upgrade',
+    ],
+  ])('names the upgrade command for %s', async (_name, project, command) => {
     const { options, output } = setup({ fetch: registry('0.22.0') });
     const check = new UpdateCheck({ ...options, cwd: project(options.cwd!) });
     check.start('run');
@@ -141,6 +174,8 @@ describe('update check', () => {
     ['off a terminal', { interactive: false }, 'run'],
     ['from a checkout', { checkout: true }, 'run'],
     ['for mcp', {}, 'mcp'],
+    // The version running `upgrade` is the one it replaces; the notice would ask for what just happened.
+    ['for upgrade', {}, 'upgrade'],
   ])('neither asks nor prints %s', async (_name, overrides, command) => {
     const { options, output } = setup({ fetch: registry('0.22.0'), ...overrides });
     const check = new UpdateCheck(options);

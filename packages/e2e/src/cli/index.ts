@@ -2,7 +2,7 @@
 
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, normalize, resolve as resolvePath, sep } from 'node:path';
-import { Argument, Command, CommanderError, InvalidArgumentError, Option } from 'commander';
+import { Argument, Command, CommanderError, Help, InvalidArgumentError, Option } from 'commander';
 import picocolors from 'picocolors';
 import { detectPackageManager, execCommand, runScriptCommand } from '../internal/package-manager.ts';
 import { packageVersion } from '../internal/package-version.ts';
@@ -19,7 +19,7 @@ import type { BuiltinReporter, RecordingMode } from '../types.ts';
 import { isRecordingMode, legacyTraceSpelling, RECORDING_MODES } from '../internal/recording-modes.ts';
 import { isCiMode } from '../config/resolve.ts';
 import { runsFromCheckout } from '../telemetry/checkout.ts';
-import { initCompletedEvent, runCompletedEvent, USAGE_ERROR_CODE } from '../telemetry/events.ts';
+import { initCompletedEvent, runCompletedEvent, upgradeCompletedEvent, USAGE_ERROR_CODE } from '../telemetry/events.ts';
 import { Telemetry } from '../telemetry/telemetry.ts';
 import { CACHE_DIR_DESCRIPTION, registerCacheCommand } from './cache.ts';
 import { docsLine, examples, helpSection, pc } from './help.ts';
@@ -37,6 +37,7 @@ import { skillTopics } from './skill.ts';
 import { watchSession } from './watch.ts';
 import { UpdateCheck } from './update-check.ts';
 import { telemetry as telemetryCommand, TELEMETRY_ACTIONS, type TelemetryAction } from './telemetry.ts';
+import { parseUpgradeTarget, upgrade, type UpgradeTarget } from './upgrade.ts';
 import { wordmarkBanner } from './wordmark.ts';
 
 /** An integer of at least one, for `--max-failures` and `--repeat-each`. */
@@ -396,6 +397,13 @@ function createProgram(version: string, telemetry: Telemetry, updateCheck: Updat
       styleOptionTerm: pc.cyan,
       styleSubcommandTerm: pc.cyan,
       styleArgumentTerm: pc.cyan,
+      // An alias in the command list widens the column every summary wraps
+      // to; the summary and the command's own usage line name it instead.
+      subcommandTerm: (command) => {
+        const term = new Help().subcommandTerm(command);
+        const alias = command.alias();
+        return alias === undefined ? term : term.replace(`${command.name()}|${alias}`, command.name());
+      },
     })
     .addHelpText(
       'before',
@@ -415,6 +423,7 @@ function createProgram(version: string, telemetry: Telemetry, updateCheck: Updat
           'e2e list --tag smoke',
           'e2e cache ls',
           'e2e guide',
+          'e2e upgrade',
           'e2e mcp',
           'e2e feedback --type bug -m "e2e list ignores --grep"',
           'e2e telemetry disable',
@@ -867,6 +876,33 @@ function createProgram(version: string, telemetry: Telemetry, updateCheck: Updat
     );
 
   registerCacheCommand(program);
+
+  program
+    .command('upgrade')
+    .alias('update')
+    .summary('upgrade e2e and its @e2e-dev packages to the latest or a given version (alias: update)')
+    .description(
+      'Upgrade the e2e of the nearest package.json that lists it, to the latest release, a dist-tag such as nightly, or one version, and every @e2e-dev/* package that package.json lists to its newest release whose peer ranges accept the new versions. The new specs go into package.json, each in the section it was in, and one install with the project\'s package manager resolves them; a failed install puts package.json and the lockfile back. A named version or a prerelease is pinned exactly; a dist-tag keeps the ^ or ~ of the old spec. Packages linked from a workspace, a path, or git are left alone.',
+    )
+    .argument('[version]', 'a version such as 0.22.0, or a dist-tag such as latest or nightly (default: latest)', parseUpgradeTarget)
+    .option('--dry-run', 'print the versions, the new specs, and the install command, and change nothing')
+    .addHelpText(
+      'after',
+      [
+        '',
+        examples(['e2e upgrade', 'e2e upgrade 0.21.0', 'e2e upgrade nightly', 'e2e update --dry-run']),
+        '',
+        docsLine('/reference/cli#e2e-upgrade'),
+      ].join('\n'),
+    )
+    .action(async (target: UpgradeTarget | undefined, options: { dryRun?: boolean }) => {
+      const { exitCode, ...outcome } = await upgrade({
+        target: target ?? { kind: 'tag', tag: 'latest' },
+        ...(options.dryRun === undefined ? {} : { dryRun: options.dryRun }),
+      });
+      telemetry.record(upgradeCompletedEvent(outcome));
+      process.exitCode = exitCode;
+    });
 
   program
     .command('feedback')
