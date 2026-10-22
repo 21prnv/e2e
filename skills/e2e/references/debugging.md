@@ -61,7 +61,8 @@ default.
      `❯ at` URL or the screen's route, and tap only to reach a state no URL
      opens. A device session starts on the app's launch screen: take the
      shortest path from there.
-   - Then rerun the file (topic `mcp` says when a session must close
+   - Then rerun only that test by `file:line` (SKILL.md, "Rerunning a
+     test while you fix it"; topic `mcp` says when a session must close
      first).
 3. `.e2e/report.json` holds the same facts for scripts, not for reading:
    each step's `events` (`engine`, `poll`, `navigation`) and the attempt's
@@ -137,7 +138,7 @@ jq '.run.results[] | select(.selected and .status != "passed") | .attempts[-1]
 | `--headed` | Watch the failing step |
 | `--workers 1 --retries 0` | Take parallelism and retries out of the picture |
 | `--action-timeout 5000` | While writing a test: a wrong locator fails in 5 s instead of 30 s (`--assertion-timeout` for `expect`). Keep it longer than the slowest screen takes to load |
-| `--no-cache` | Rule out a stale `agent.act` replay |
+| `--no-cache` | Rule out a stale `agent.act` replay; one run, not every rerun. A failed run already deletes the replay that ran into the failure, so rerun with the cache on first. When the failure repeats after a replay the trace page shows as kept and the `--no-cache` run passes, tighten the check after that goal: the stale replay then fails it and is deleted |
 | `--debug` | Each agent step's duration, model calls, cost, transcript |
 | `--ai-trace`, then `npx unbox-ai runs .e2e/ai-trace.json` | What the model saw and called |
 | `--video`, `--video=retain-on-failure` | Watch the failed attempt; `step.startedAt` minus the segment's `startedAt` is the step's offset into it |
