@@ -98,13 +98,10 @@ function resolve(
         if (expression.hasText !== undefined && !subtreeHasText(node, candidates, tree, expression.hasText)) {
           return false;
         }
-        if (expression.has !== undefined) {
+        if (expression.has !== undefined || expression.hasNot !== undefined) {
           const within = descendantsOf([node], candidates, tree);
-          if (resolve(expression.has, within, tree, options).length === 0) return false;
-        }
-        if (expression.hasNot !== undefined) {
-          const within = descendantsOf([node], candidates, tree);
-          if (resolve(expression.hasNot, within, tree, options).length > 0) return false;
+          if (expression.has !== undefined && resolve(expression.has, within, tree, options).length === 0) return false;
+          if (expression.hasNot !== undefined && resolve(expression.hasNot, within, tree, options).length > 0) return false;
         }
         return true;
       });

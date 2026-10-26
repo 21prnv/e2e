@@ -110,4 +110,15 @@ describe('locator expressions', () => {
       'getByRole("listitem").filter({ hasText: "Pro", has: getByRole("button", name: "Remove") })',
     );
   });
+
+  it('describeExpression renders a hasNot filter with the inner locator, after has when both are set', () => {
+    const inner = roleQuery('button', { name: 'Remove' }, undefined);
+    const source = roleQuery('listitem', undefined, undefined);
+    expect(describeExpression(filterExpression(source, { hasNot: inner }))).toBe(
+      'getByRole("listitem").filter({ hasNot: getByRole("button", name: "Remove") })',
+    );
+    expect(describeExpression(filterExpression(source, { hasText: 'Pro', has: inner, hasNot: inner }))).toBe(
+      'getByRole("listitem").filter({ hasText: "Pro", has: getByRole("button", name: "Remove"), hasNot: getByRole("button", name: "Remove") })',
+    );
+  });
 });

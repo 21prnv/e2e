@@ -256,7 +256,7 @@ function plain(locator: PwLocator): ProjectedLocator {
 }
 
 const DISPLAY_VALUE_COMPOSITION_MESSAGE =
-  'displayValue queries cannot scope child queries or serve as a has-filter in this engine';
+  'displayValue queries cannot scope child queries or serve as a has or hasNot filter in this engine';
 
 /**
  * Projects a complete immutable expression onto a Playwright locator within
