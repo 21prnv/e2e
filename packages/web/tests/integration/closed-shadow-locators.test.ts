@@ -174,7 +174,6 @@ describe('locators inside closed shadow roots', () => {
     expect(withSubmit).toHaveLength(1);
     const withSidecar = await locate({ kind: 'filter', source: host, has: byRole('button', 'Sidecar') });
     expect(withSidecar).toHaveLength(0);
-    // hasNot is the same subtree test, inverted.
     expect(await locate({ kind: 'filter', source: host, hasNot: byRole('button', 'Submit') })).toHaveLength(0);
     expect(await locate({ kind: 'filter', source: host, hasNot: byRole('button', 'Sidecar') })).toHaveLength(1);
   });

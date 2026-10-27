@@ -61,7 +61,7 @@ describe('locator.filter({ has })', () => {
   it('refuses a has that is not an e2e locator before any engine call', () => {
     const { screen, expressions } = listScreen();
     expect(() => screen.getByRole('listitem').filter({ has: invalid<Locator>({}) })).toThrow(
-      expect.objectContaining({ code: 'INVALID_LOCATOR' }),
+      expect.objectContaining({ code: 'INVALID_LOCATOR', message: 'filter({ has }) requires an e2e locator' }),
     );
     expect(expressions).toEqual([]);
   });
@@ -100,7 +100,7 @@ describe('locator.filter({ hasNot })', () => {
   it('refuses a hasNot that is not an e2e locator before any engine call', () => {
     const { screen, expressions } = listScreen();
     expect(() => screen.getByRole('listitem').filter({ hasNot: invalid<Locator>({}) })).toThrow(
-      expect.objectContaining({ code: 'INVALID_LOCATOR' }),
+      expect.objectContaining({ code: 'INVALID_LOCATOR', message: 'filter({ hasNot }) requires an e2e locator' }),
     );
     expect(expressions).toEqual([]);
   });
