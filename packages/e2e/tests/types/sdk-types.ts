@@ -419,6 +419,10 @@ void (screen.getByRole('row').filter({ hasNotText: 'Paid' }) satisfies Locator);
 void (screen.getByRole('row').filter({ hasText: 'Invoice', hasNotText: /Paid/i }) satisfies Locator);
 // @ts-expect-error negative text filters require text or a RegExp
 void screen.getByRole('row').filter({ hasNotText: 42 });
+void (screen.getByRole('row').filter({ hasNot: screen.getByRole('status') }) satisfies Locator);
+void (screen.getByRole('row').filter({ hasText: 'Invoice', hasNot: screen.getByText('Paid') }) satisfies Locator);
+// @ts-expect-error hasNot takes a locator, not text
+void screen.getByRole('row').filter({ hasNot: 'Paid' });
 
 // expect.poll carries every value matcher and no other, each resolving to void.
 declare const pollMatcherNames: Exclude<keyof PollExpectation<string>, 'not'>;

@@ -256,7 +256,7 @@ function plain(locator: PwLocator): ProjectedLocator {
 }
 
 const DISPLAY_VALUE_COMPOSITION_MESSAGE =
-  'displayValue queries cannot scope child queries or serve as a has-filter in this engine';
+  'displayValue queries cannot scope child queries or serve as a has or hasNot filter in this engine';
 
 /**
  * Projects a complete immutable expression onto a Playwright locator within
@@ -272,7 +272,7 @@ const DISPLAY_VALUE_COMPOSITION_MESSAGE =
  *
  * A display-value query resolves to a candidate locator plus a value predicate
  * the surface applies once the candidates are read. Per-element filters
- * (`filter({ hasText, hasNotText, has })`) commute with that predicate, so they compose
+ * (`filter({ hasText, hasNotText, has, hasNot })`) commute with that predicate, so they compose
  * onto the candidate locator as for any other query. Positional selection does
  * not commute (positions are relative to the value-filtered matches), so it is
  * recorded as a step and applied after filtering; a filter that follows a
@@ -312,6 +312,9 @@ function project(scope: PwScope, expression: LocatorExpression, testIdAttribute:
       if (expression.hasNotText !== undefined) options.hasNotText = patternToPw(expression.hasNotText);
       if (expression.has !== undefined) {
         options.has = requireComposable(project(scope, expression.has, testIdAttribute));
+      }
+      if (expression.hasNot !== undefined) {
+        options.hasNot = requireComposable(project(scope, expression.hasNot, testIdAttribute));
       }
       if (source.steps.length > 0) {
         return { ...source, steps: [...source.steps, { kind: 'filter', options }] };

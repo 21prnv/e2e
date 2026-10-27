@@ -39,9 +39,10 @@ export function resolveExpression(
       return source.filter((entry) => {
         if (expression.hasText !== undefined && !subtreeHasText(entry, index, expression.hasText)) return false;
         if (expression.hasNotText !== undefined && subtreeHasText(entry, index, expression.hasNotText)) return false;
-        if (expression.has !== undefined) {
+        if (expression.has !== undefined || expression.hasNot !== undefined) {
           const within = descendantsOf([entry], index);
-          if (resolveExpression(expression.has, within, platform).length === 0) return false;
+          if (expression.has !== undefined && resolveExpression(expression.has, within, platform).length === 0) return false;
+          if (expression.hasNot !== undefined && resolveExpression(expression.hasNot, within, platform).length > 0) return false;
         }
         return true;
       });

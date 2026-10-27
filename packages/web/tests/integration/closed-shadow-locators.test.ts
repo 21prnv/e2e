@@ -174,6 +174,8 @@ describe('locators inside closed shadow roots', () => {
     expect(withSubmit).toHaveLength(1);
     const withSidecar = await locate({ kind: 'filter', source: host, has: byRole('button', 'Sidecar') });
     expect(withSidecar).toHaveLength(0);
+    expect(await locate({ kind: 'filter', source: host, hasNot: byRole('button', 'Submit') })).toHaveLength(0);
+    expect(await locate({ kind: 'filter', source: host, hasNot: byRole('button', 'Sidecar') })).toHaveLength(1);
   });
 
   it('reads hasText as Playwright does, so text inside a closed root does not count toward the host', async () => {
