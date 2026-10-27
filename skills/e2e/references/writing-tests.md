@@ -177,13 +177,14 @@ substring; a `RegExp` matches as written.
   `toHaveText` and `toContainText`, `isVisible()` (false at zero),
   `isHidden()` (true), `count()`, `all()`, `allTextContents()`.
 - Narrow with `filter({ hasText })` (a case-insensitive substring, unlike a
-  query), `filter({ has: locator })`, `filter({ hasNot: locator })`,
-  `first()`, `last()`, `nth(i)`, or scoping under another locator. Any other
-  `filter` key (`hasNotText`, `visible`) or an empty `filter({})` is
-  `INVALID_LOCATOR`. `a.or(b)` matches either, still strict: add `first()`
-  when both may match. Both locators must come from the same screen and
-  attempt. Web branches need identical literal frame-selector chains;
-  display-value branches cannot be composed.
+  query), `filter({ hasNotText })` to exclude matching subtree text,
+  `filter({ has: locator })`, `filter({ hasNot: locator })`, `first()`,
+  `last()`, `nth(i)`, or scoping under another locator. Any other `filter`
+  key (`visible`) or an empty `filter({})` is `INVALID_LOCATOR`. `a.or(b)`
+  matches either, still strict: add `first()` when both may match. Both
+  locators must come from the same screen and attempt. Web branches need
+  identical literal frame-selector chains; display-value branches cannot be
+  composed.
 - `visible: true` drops nodes the page hides (a closed drawer) before the
   exactly-one rule. Visibility is what renders, as `toBeVisible()` reads it:
   an `aria-hidden` spinner that paints is visible, so `toBeHidden()` waits
@@ -526,6 +527,10 @@ A `route`, `unroute`, or `waitForResponse` pattern is a glob string or
 - APIs live in the same suite: `fetch(new URL('/api/users', app.baseUrl))`
   plus value matchers, in a `test.extend` fixture that reads `browser.cookies()`
   when the API needs the session.
-- No sleeps or polling loops; a matcher with a longer `timeout` instead.
+- No sleeps, fixed delays, or polling loops. Wait for the state, not a
+  duration: `agent.waitFor('the import finished')` with a `timeout` long
+  enough for the slowest case (topic `agent` lists its model and budget
+  limits), or a matcher with a longer `timeout` when a locator names the
+  state exactly.
 - `await` every step call and `expect.poll`, else `STEP_NOT_AWAITED` at the line of the call.
 - Assert the fact a model produced with `toContain`, not its exact sentence.

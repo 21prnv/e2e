@@ -57,10 +57,11 @@ default.
      screen at failure, the app source, or a live session.
    - For a screen the evidence and the source leave out, look live (topic
      `mcp`): open or reuse a session, go straight to that screen, then
-     `observe` and `locate`. On the web, `navigate` to the path of the
-     `❯ at` URL or the screen's route, and tap only to reach a state no URL
-     opens. A device session starts on the app's launch screen: take the
-     shortest path from there.
+     `observe` and `locate`, or `run_code` for the fixed line and the ones
+     after it. On the web, `navigate` to the path of the `❯ at` URL or the
+     screen's route, and tap only to reach a state no URL opens. A device
+     session starts on the app's launch screen: take the shortest path from
+     there.
    - Then rerun only that test by `file:line` (SKILL.md, "Rerunning a
      test while you fix it"; topic `mcp` says when a session must close
      first).
@@ -101,6 +102,7 @@ jq '.run.results[] | select(.selected and .status != "passed") | .attempts[-1]
 | `CONFIG_NOT_FOUND`, `CONFIG_AMBIGUOUS` | Wrong `--config` path; both `.ts` and `.mts` present | Fix the path; keep one |
 | `NO_TESTS` | The glob, a positional, or a filter matched nothing; the message names each empty positional and each undeclared `--tag` with the nearest declared one | Check the config `tests`, the file suffix (`.e2e.ts` by default), the tag names |
 | `NO_LAST_RUN` | `--last-failed` found no `.e2e/report.json` | Run once without it |
+| `INVALID_CHANGED_SINCE` | `--changed-since` names no commit in the checkout, shares no history with HEAD (a shallow clone, or unrelated histories), or git is missing | Run from a git checkout with git installed; check the ref; fetch it and more history (`git fetch --unshallow`, or `fetch-depth: 0` on `actions/checkout`); for unrelated histories, name a ref on HEAD's history |
 | `COLLECTION_ERROR` | `async` describe body, `test.setup` inside `describe`, an option forbidden in a serial group, registration outside collection | Restructure per `writing-tests` |
 | `HOOK_FAILED` | `beforeAll` or `afterAll` threw; its scope's tests skip | Fix the hook; the report carries its error |
 | `UNSUPPORTED_ARTIFACT` | A test's or target's `video` on an engine that cannot record | Drop it there, or set it at the config root or CLI (such targets skip with a notice) |
