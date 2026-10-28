@@ -52,6 +52,7 @@ import {
   normalizeKind,
   projectSnapshot,
   ROOT_ID,
+  TEXT_INPUT_ROLES,
   screenRoot,
   screenTitle,
   type ProjectedNode,
@@ -1175,27 +1176,18 @@ export class AgentDeviceSurface {
   }
 
   /**
-   * Lets a control that came with the last action finish arriving before a
-   * test acts on it, and answers the binding to act on. A control already
-   * present at the same place in the snapshot the last action was resolved
-   * from is acted on at once only when keyboard state also stayed the same.
-   * A keyboard change can precede the app's relayout, so anything else waits
-   * out the remainder of the transition budget since that action and is then
-   * found again in a fresh snapshot. The budget is the only signal that the
-   * transition is over, since the tree cannot tell a sliding control from a
-   * landed one; the fresh snapshot is where the control landed. Android
-   * reports a window's frames while it slides in, so a ref resolved
-   * mid-flight would send the action where the control was: below the
-   * screen, for a modal rising from the bottom.
+   * Waits for a control that arrived or moved with the last action, returning
+   * whether it waited. Controls already present at the same place need no wait,
+   * unless keyboard state changed: a keyboard change can precede the app's relayout.
    */
-  private async settled(entry: NodeBinding, operation: OperationContext): Promise<NodeBinding> {
+  private async waitForTransition(entry: NodeBinding, operation: OperationContext): Promise<boolean> {
     const since = Date.now() - this.lastActionAt;
     const remaining = this.transitionMs - since;
-    if (remaining <= 0) return entry;
+    if (remaining <= 0) return false;
     const before = this.screenBeforeAction;
     if (before !== undefined && before.keyboardVisible === entry.keyboardVisible) {
       const prior = this.refind(entry, before.index);
-      if (prior !== undefined && sameRect(prior.node.rect, entry.node.rect)) return entry;
+      if (prior !== undefined && sameRect(prior.node.rect, entry.node.rect)) return false;
     }
     await sleep(remaining, operation.signal);
     // The sleep resolves on abort; the action behind it must not go out once
@@ -1203,13 +1195,27 @@ export class AgentDeviceSurface {
     if (operation.signal.aborted) {
       throw new EngineError('CANCELLED', 'transition wait cancelled', { retryable: false });
     }
-    return this.relocated(entry, operation);
+    return true;
   }
 
-  /** The same control in a fresh snapshot; the binding as it was when the snapshot no longer lists it. */
-  private async relocated(entry: NodeBinding, operation: OperationContext): Promise<NodeBinding> {
-    const projected = this.project(await this.snapshotOrEmpty(operation, false));
+  /** Refreshes a control after a transition wait, keeping the binding when no wait was needed. */
+  private async settled(entry: NodeBinding, operation: OperationContext): Promise<NodeBinding> {
+    if (await this.waitForTransition(entry, operation)) return this.relocated(entry, operation);
+    return entry;
+  }
+
+  /** The same control in a fresh snapshot; input mutations refuse a missing target or changed security facts. */
+  private async relocated(entry: NodeBinding, operation: OperationContext, input = false): Promise<NodeBinding> {
+    const raw = await this.snapshotOrEmpty(operation, false);
+    const projected = this.project(raw);
     const found = this.refind(entry, projected.index);
+    if (input && (isTruncated(raw) || found === undefined ||
+      entry.node.inputPurpose !== found.node.inputPurpose ||
+      entry.node.states?.disabled !== found.node.states?.disabled ||
+      entry.node.states?.secure !== found.node.states?.secure ||
+      entry.node.states?.hidden !== found.node.states?.hidden)) {
+      throw new EngineError('NODE_STALE', `input node ${entry.id} changed before mutation; observe and authorize it again`, { retryable: true });
+    }
     return found === undefined ? entry : this.bind(found, projected);
   }
 
@@ -1246,6 +1252,10 @@ export class AgentDeviceSurface {
       return;
     }
     const entry = this.resolveRef(ref);
+    const filling = action.kind === 'fill' || action.kind === 'clear';
+    if (filling && (entry.node.role === undefined || !TEXT_INPUT_ROLES.has(entry.node.role))) {
+      throw unsupported(`agent-device can only ${action.kind} editable fields; node ${entry.id} is ${entry.node.role ?? 'unknown'}`);
+    }
     const label = `perform ${action.kind}`;
     const client = this.requireClient();
     // A toggle already in the wanted state sends nothing, so it neither waits
@@ -1255,7 +1265,13 @@ export class AgentDeviceSurface {
     }
     const before = this.latestScreen;
     const run = async (): Promise<unknown> => {
-      const target = deterministic ? await this.settled(entry, operation) : entry;
+      let target = entry;
+      if (filling) {
+        if (deterministic) await this.waitForTransition(entry, operation);
+        target = await this.relocated(entry, operation, true);
+      } else if (deterministic) {
+        target = await this.settled(entry, operation);
+      }
       switch (action.kind) {
         case 'tap':
           return input.send(() => client.interactions.press({ ...this.actionTarget(target, true), ...settle }));

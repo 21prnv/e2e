@@ -380,6 +380,10 @@ export default {
   `transition` (default 500 ms). Opening or closing the keyboard also uses
   the remaining budget. Agent actions settle `settle` ms (default
   150) before the next observation, `settle: false` skips it.
+- Mobile `fill` and `clear` re-read the field before typing, replay included.
+  Missing fields, changed security state, or incomplete captures return
+  `NODE_STALE` before mutation, then retry after a fresh observation.
+  Non-input targets return `UNSUPPORTED_CAPABILITY`.
 - `screen`, `expect`, `app`, `agent` work unchanged; `test` from
   `@e2e-dev/mobile` types the `device` fixture (`installApp`, `openLink`,
   `setPermission`, `setNetwork`, `setAppearance`, `clearKeychain`, `fold`
