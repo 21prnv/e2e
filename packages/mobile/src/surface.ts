@@ -384,6 +384,13 @@ function tellHarness(call: () => void): void {
   }
 }
 
+/** The agent-device session a worker drives, and the device agent-device booted for it. */
+export interface BoundDevice {
+  readonly session: string;
+  readonly deviceId: string;
+  readonly deviceName: string;
+}
+
 export class AgentDeviceSurface {
   private client: AgentDeviceClient | undefined;
   private attempt: Attempt | undefined;
@@ -407,6 +414,8 @@ export class AgentDeviceSurface {
   private projectRoot = process.cwd();
   /** The session and device this worker drives, for the error messages whose recovery is per device; set in init. */
   private where: string | undefined;
+  /** The agent-device session this worker drives and the device `init` booted under it. */
+  private bound: BoundDevice | undefined;
   /** How this worker's device records through its provider: set in init when the pool's provider records and the slot rides one of its leases. */
   private leaseRecorder: LeaseRecorder | undefined;
   /**
@@ -467,6 +476,12 @@ export class AgentDeviceSurface {
   /** Whether an attempt is running on this surface right now. */
   get attemptRunning(): boolean {
     return this.attempt !== undefined;
+  }
+
+  /** The agent-device session and the device it runs on; INVALID_STATE before init or after dispose. */
+  get boundDevice(): BoundDevice {
+    if (this.bound === undefined) throw invalidState('the agent-device engine is not initialized');
+    return this.bound;
   }
 
   /** The live client; INVALID_STATE before init or after dispose. */
@@ -552,7 +567,8 @@ export class AgentDeviceSurface {
       provider === undefined || lease === undefined
         ? undefined
         : { provider, lease, runId: info.runId, targetName: info.targetName, env: info.env };
-    await this.command('boot', (client) => client.devices.boot(this.selection()), info.signal);
+    const booted = await this.command('boot', (client) => client.devices.boot(this.selection()), info.signal);
+    this.bound = { session, deviceId: booted.id, deviceName: booted.device };
     // Nothing is installed here: a device provider that installed the build
     // from `appPath` says so on the binding, and otherwise the suite installs
     // it where it wants to, with `device.installApp()`.
@@ -718,6 +734,7 @@ export class AgentDeviceSurface {
     const client = this.client;
     const recording = this.recording;
     this.client = undefined;
+    this.bound = undefined;
     this.attempt = undefined;
     this.screenSink = undefined;
     this.generation = new Map();
