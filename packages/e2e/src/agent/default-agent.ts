@@ -42,7 +42,7 @@ const presenters = new WeakMap<StepExecutorContext, ScreenPresenter>();
 function presenterFor(context: StepExecutorContext): ScreenPresenter {
   let presenter = presenters.get(context);
   if (presenter === undefined) {
-    presenter = new ScreenPresenter({ pixelsUnavailable: () => context.pixelsTainted });
+    presenter = new ScreenPresenter();
     presenters.set(context, presenter);
   }
   return presenter;
@@ -72,14 +72,13 @@ export function createBuiltInAgent(options: BuiltInAgentOptions = {}): StepExecu
       ...createGrammarTools(context, { guard: helpers.guard, screen: presenterFor(context) }),
     }),
     buildPrompt: async (context) => {
-      // The opening look is tree-only, unless pixels are allowed and no
-      // listed interactive node exists at all: then the opening prompt
-      // carries a screenshot, because the tree describes a canvas, a game,
+      // The opening look is tree-only, unless no listed interactive node
+      // exists at all: then the opening prompt carries a screenshot, because the tree describes a canvas, a game,
       // or a semantics-free native screen too poorly to act on, and the model
       // would only spend a turn asking for one. One listed control is enough
       // to leave the decision to the model; a small page is not a blind one.
       let observation = await context.observe();
-      if (!context.pixelsTainted && observation.pixels === undefined && interactiveNodeCount(observation) === 0) {
+      if (observation.pixels === undefined && interactiveNodeCount(observation) === 0) {
         observation = await context.observe({ pixels: true });
       }
       const title = testTitleLine(context.attempt.titlePath);

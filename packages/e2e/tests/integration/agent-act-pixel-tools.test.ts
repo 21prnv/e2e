@@ -6,8 +6,8 @@
  * id underneath (typed, pressed, selected), a point tapped
  * through the engine or focused and typed into through the keyboard, every
  * later result carrying a fresh screenshot, the point verbs answering with a
- * line before any screenshot, and every pixel verb withheld once a secret was
- * filled.
+ * line before any screenshot, and every pixel verb still offered once a
+ * secret was filled.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -68,7 +68,7 @@ test('asks for a screenshot before typing at a point', async ({ app, agent }) =>
   await agent.act('type at a point before any screenshot');
 });
 
-test('offers no pixel verbs after a secret fill', async ({ app, agent, screen }) => {
+test('offers pixel verbs after a secret fill', async ({ app, agent, screen }) => {
   await app.open();
   await screen.getByLabel('Password').fill(credentials.user('member').password);
   await agent.act('note the page');
@@ -360,10 +360,11 @@ describe('agent.act pixel verbs', () => {
     }
   });
 
-  it('leaves every pixel verb out of the vocabulary once a secret was filled', () => {
-    expect(resultByTitle(outcome, 'offers no pixel verbs after a secret fill').status).toBe('passed');
+  it('keeps every pixel verb in the vocabulary after a secret fill', () => {
+    expect(resultByTitle(outcome, 'offers pixel verbs after a secret fill').status).toBe('passed');
     const [first] = turnsOf('note the page');
-    for (const verb of POINT_VERBS) expect(first!.toolNames).not.toContain(verb);
+    for (const verb of POINT_VERBS) expect(first!.toolNames).toContain(verb);
+    expect(first!.toolNames).toContain('screenshot');
     expect(first!.toolNames).toContain('tap');
     expect(first!.toolNames).toContain('type');
   });
