@@ -131,9 +131,10 @@ export interface OpenAppOptions {
 /**
  * The snapshot fields this engine reads off agent-device's response. `keyboard`
  * is the band the capture's producer measured: `visible` with its frame,
- * `absent`, or that it could not look.
+ * `absent`, or that it could not look. `refsGeneration` is the capture its
+ * refs were issued from.
  */
-type RawSnapshot = Partial<Pick<CaptureSnapshotResult, 'nodes' | 'viewport' | 'truncated' | 'appName' | 'appBundleId' | 'snapshotQuality' | 'keyboard'>>;
+type RawSnapshot = Partial<Pick<CaptureSnapshotResult, 'nodes' | 'viewport' | 'truncated' | 'appName' | 'appBundleId' | 'snapshotQuality' | 'keyboard' | 'refsGeneration'>>;
 
 /** Platform element types that are the soft keyboard or one of its keys, as agent-device names them. */
 const KEYBOARD_TYPES: ReadonlySet<string> = new Set(['keyboard', 'key']);
@@ -200,6 +201,8 @@ interface NodeBinding {
   readonly ref: string;
   readonly node: SemanticNode;
   readonly controlRef: string;
+  /** The capture `ref` and `controlRef` came from, pinned on every action so agent-device refuses them once a newer capture supersedes it. */
+  readonly refsGeneration: number | undefined;
   readonly keyboardVisible: boolean;
   /** Whether `fill` and `clear` may type into the node, judged with the children `node` leaves out. */
   readonly takesText: boolean;
@@ -1017,6 +1020,7 @@ export class AgentDeviceSurface {
           return `n${this.idCounter}`;
         },
         viewport: raw.viewport,
+        refsGeneration: raw.refsGeneration,
       }),
       keyboardVisible: keyboardShowing(raw),
     };
@@ -1133,7 +1137,7 @@ export class AgentDeviceSurface {
   private actionTarget(entry: NodeBinding, control = false): { ref: string } {
     const ref = control ? entry.controlRef : entry.ref;
     if (ref === '') throw notActionable(`node ${entry.id} has no agent-device ref to act on`);
-    return { ref: `@${ref}` };
+    return { ref: entry.refsGeneration === undefined ? `@${ref}` : `@${ref}~s${entry.refsGeneration}` };
   }
 
   /**
@@ -1170,7 +1174,25 @@ export class AgentDeviceSurface {
       controlRef: control.ref,
       keyboardVisible: snapshot.keyboardVisible,
       takesText: mayTakeText(entry.node),
+      refsGeneration: snapshot.refsGeneration,
     };
+  }
+
+  /** The same control in the newest capture: the binding itself when it came from that capture, else found there again where it was. */
+  private current(entry: NodeBinding): NodeBinding {
+    const latest = this.latestScreen;
+    if (latest === undefined || entry.refsGeneration === latest.refsGeneration) return entry;
+    const found = this.samePlace(entry, latest.index);
+    if (found === undefined) {
+      throw new EngineError('NODE_STALE', `node ${entry.id} changed since it was located; re-resolve`, { retryable: true });
+    }
+    return this.bind(found, latest);
+  }
+
+  /** The node a binding stands for in a snapshot, when it is still where it was. */
+  private samePlace(entry: NodeBinding, index: readonly ProjectedNode[]): ProjectedNode | undefined {
+    const found = this.refind(entry, index);
+    return found !== undefined && sameRect(found.node.rect, entry.node.rect) ? found : undefined;
   }
 
   /**
@@ -1211,10 +1233,7 @@ export class AgentDeviceSurface {
     const remaining = this.transitionMs - since;
     if (remaining <= 0) return false;
     const before = this.screenBeforeAction;
-    if (before !== undefined && before.keyboardVisible === entry.keyboardVisible) {
-      const prior = this.refind(entry, before.index);
-      if (prior !== undefined && sameRect(prior.node.rect, entry.node.rect)) return false;
-    }
+    if (before !== undefined && before.keyboardVisible === entry.keyboardVisible && this.samePlace(entry, before.index) !== undefined) return false;
     await sleep(remaining, operation.signal);
     // The sleep resolves on abort; the action behind it must not go out once
     // the caller has already been told the operation was cancelled.
@@ -1351,10 +1370,13 @@ export class AgentDeviceSurface {
           return input.send(() => client.interactions.swipe(swipeWithin(rect, action.direction, action.momentum)));
         }
         case 'dragTo': {
-          const destination = this.resolveRef(action.target);
+          // A test locates the drop target in a capture of its own, after the
+          // source's; agent-device takes both refs from the newest one only.
+          const source = this.current(target);
+          const destination = this.current(this.resolveRef(action.target));
           return input.send(() =>
             client.interactions.drag({
-              source: this.actionTarget(target).ref,
+              source: this.actionTarget(source).ref,
               destination: this.actionTarget(destination).ref,
             }),
           );
