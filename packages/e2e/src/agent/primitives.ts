@@ -205,19 +205,24 @@ export interface GrammarToolOptions {
    * instead turns it into text and ends the loop.
    */
   readonly guard?: <T>(body: () => Promise<T>) => Promise<T | string>;
-  /**
-   * Renders screens for the model and remembers what it has seen, so every
-   * result after the first reports the changes rather than the whole tree.
-   * Shared with the opening prompt by the built-in agent; a fresh one per step
-   * otherwise.
-   */
-  readonly screen?: ScreenPresenter;
+}
+
+/** The package's own callers: the options, the presenter they share with what they show the model themselves, and failure causes. */
+interface GrammarToolSetup extends GrammarToolOptions {
   /**
    * Told the cause of every action that failed into a result rather than a
    * throw, before it becomes the result's text: the one place its runner
    * code is still structured.
    */
   readonly onActionFailed?: ((cause: unknown) => void) | undefined;
+  /**
+   * Renders screens for the model and remembers what it has seen, so every
+   * result after the first reports the changes rather than the whole tree.
+   * Shared with the opening prompt by the built-in agent and with the session
+   * by `e2e mcp`; a fresh one per step otherwise, so the first look
+   * (`observe`) returns the whole screen.
+   */
+  readonly screen?: ScreenPresenter;
 }
 
 /**
@@ -314,9 +319,12 @@ const POINT_TOOLS: readonly {
  * that batches several actions gets one coherent result per action rather
  * than every result describing the state after the last one.
  */
-export function createGrammarTools(
+export const createGrammarTools: (context: StepExecutorContext, options?: GrammarToolOptions) => ToolSet = grammarTools;
+
+/** `createGrammarTools` for the package's own callers, which may share a screen presenter and hear of failed actions. */
+export function grammarTools(
   context: StepExecutorContext,
-  options: GrammarToolOptions = {},
+  options: GrammarToolSetup = {},
 ): ToolSet {
   const { guard, screen, verbs, inOrder, present, perform, acting } = verbKit(context, options);
 
@@ -837,7 +845,7 @@ function createPointTools(
  * time. An action may return its own lead line, for a result only it can
  * describe, and with it whether the tree is expected to show a change.
  */
-function verbKit(context: StepExecutorContext, options: GrammarToolOptions) {
+function verbKit(context: StepExecutorContext, options: GrammarToolSetup) {
   const guard = options.guard ?? (<T>(body: () => Promise<T>) => body());
   const screen: ScreenPresenter = options.screen ?? new ScreenPresenter();
   const queue = new OperationQueue();
