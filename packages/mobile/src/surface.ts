@@ -1230,7 +1230,11 @@ export class AgentDeviceSurface {
     return entry;
   }
 
-  /** The same control in a fresh snapshot; input mutations refuse a missing target or changed security facts. */
+  /**
+   * The same control in a fresh snapshot. A snapshot that no longer lists it
+   * is a retryable NODE_STALE, so the locator resolves again; input mutations
+   * also refuse a truncated snapshot or changed security facts.
+   */
   private async relocated(entry: NodeBinding, operation: OperationContext, input = false): Promise<NodeBinding> {
     const raw = await this.snapshotOrEmpty(operation, false);
     const projected = this.project(raw);
@@ -1242,7 +1246,10 @@ export class AgentDeviceSurface {
       entry.node.states?.hidden !== found.node.states?.hidden)) {
       throw new EngineError('NODE_STALE', `input node ${entry.id} changed before mutation; observe and authorize it again`, { retryable: true });
     }
-    return found === undefined ? entry : this.bind(found, projected);
+    if (found === undefined) {
+      throw new EngineError('NODE_STALE', `node ${entry.id} changed during transition; re-resolve`, { retryable: true });
+    }
+    return this.bind(found, projected);
   }
 
   /**
