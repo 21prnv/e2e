@@ -108,9 +108,8 @@ export function describeDelta(
   const endKeys = new Set(end.map((anchor) => anchor.key));
   const appeared = deltaSide(end, start, (anchor) => startKeys.has(anchor.key), routeMoved);
   const gone = deltaSide(start, end, (anchor) => endKeys.has(anchor.key) || anchorIn(anchor.descriptor, end), routeMoved);
-  const otherStable = (other: DeltaSide) => other.stable.length > 0;
   const pick = (side: DeltaSide, other: DeltaSide) => {
-    const kept = side.stable.length > 0 ? side.stable : otherStable(other) ? side.countsOnly : side.all;
+    const kept = side.stable.length > 0 ? side.stable : other.stable.length > 0 ? side.withCounts : side.all;
     return kept.slice(0, MAX_TRACE_ANCHORS).map((anchor) => anchor.descriptor);
   };
   return { appeared: pick(appeared, gone), gone: pick(gone, appeared) };
@@ -120,7 +119,7 @@ export function describeDelta(
 interface DeltaSide {
   readonly all: readonly AnchorNode[];
   readonly stable: readonly AnchorNode[];
-  readonly countsOnly: readonly AnchorNode[];
+  readonly withCounts: readonly AnchorNode[];
 }
 
 /** One projected anchor with the node it came from. */
@@ -153,7 +152,7 @@ function deltaSide(
   return {
     all,
     stable: all.filter((anchor) => isAlert(anchor.descriptor) || !volatile(anchor.descriptor)),
-    countsOnly: all.filter((anchor) => isAlert(anchor.descriptor) || !isTextVolatile(anchor.descriptor)),
+    withCounts: all.filter((anchor) => isAlert(anchor.descriptor) || !isTextVolatile(anchor.descriptor)),
   };
 }
 
@@ -163,8 +162,8 @@ function deltaSide(
  * anchor made of it hands every replay off, so it is skipped while some
  * stable anchor exists on either side of the delta; with nothing else, the
  * volatile ones stay, because a replay that always hands off is still safer
- * than one that passes on mechanics alone. An alert keeps it, and is compared with these parts read
- * as placeholders (`alertShape`).
+ * than one that passes on mechanics alone. An alert keeps it, and is
+ * compared with these parts read as placeholders (`alertShape`).
  */
 const VOLATILE_TEXT: readonly RegExp[] = [
   /\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{12,}\b/,
@@ -212,6 +211,7 @@ function isTextVolatile(anchor: TraceTargetDescriptor): boolean {
   return isBareNumber(anchor) || anchorTexts(anchor).some((value) => VOLATILE_TEXT.some((pattern) => pattern.test(value)));
 }
 
+/** The texts an anchor can say its text in: its text, name and value. */
 function anchorTexts(anchor: TraceTargetDescriptor): string[] {
   return [anchor.text, anchor.name, anchor.value].filter((value): value is string => value !== undefined);
 }
