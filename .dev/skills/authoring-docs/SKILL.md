@@ -205,6 +205,10 @@ file must be a silhouette too:
 - **Weight**: the icon shows at 16 px. Hairline strokes look faint at that
   size. Thicken them until the mark is as heavy as the icons beside it.
 
+The one exception is our own mark, `icons/testerarmy.png`: the TesterArmy
+favicon in grey shades, since its dithered pixel art turns to mush as a
+silhouette. The docs site skips the silhouette filter for it.
+
 Card logos in `docs/images/integrations/` are a different set. They keep
 their brand colors, and some sit on a filled tile. Don't use one as a page
 icon. Make a silhouette copy in `docs/images/icons/`.
@@ -490,7 +494,7 @@ Each group opens with one table, one row per entry. Keep it to the minimum:
       links to it ([Page icons](#page-icons)). A new integration or CI page
       has a card on its overview.
 - [ ] A page icon from a file is a black silhouette under
-      `docs/images/icons/` and matches its sidebar neighbors in light and
-      dark mode.
+      `docs/images/icons/` (except `testerarmy.png`, see "Page icons") and
+      matches its sidebar neighbors in light and dark mode.
 - [ ] Links and anchors resolve. Moved pages have redirects.
 - [ ] `pnpm docs:check` passes.
