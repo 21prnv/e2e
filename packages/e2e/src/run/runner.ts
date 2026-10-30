@@ -37,6 +37,7 @@ import { loadAiSdk } from '../agent/ai-sdk.ts';
 import { leaveWorkBehind } from '../internal/abandoned.ts';
 import { AiTraceCollector, AiTraceRecorder, registerAiTraceRecorder } from '../internal/ai-trace.ts';
 import { DebugTrace } from '../internal/debug.ts';
+import { printableUrl } from '../internal/urls.ts';
 import { resultId, timestamp, uuidv7 } from '../internal/ids.ts';
 import type { ExploreProgress } from '../explore/progress.ts';
 import { buildReport, projectSource, type Report1Document, type ReportChanges, type ReportExplore, type ReportFilter, type TargetProvenance } from '../report/build.ts';
@@ -946,17 +947,18 @@ export async function run(options: RunOptions = {}): Promise<RunOutcome> {
 
     // Each selected target declares the app it drives and the command that
     // starts it. Nothing spawns once the run was interrupted. Each command is
-    // one setup step; a reused process or an ignored `reuseExisting` narrates
-    // as a run notice.
+    // one setup step, named with the URL it answers on; a reused process or
+    // an ignored `reuseExisting` narrates as a run notice.
+    const appStep = (label: string, url: string | undefined) => ({ kind: 'app' as const, label, ...(url === undefined ? {} : { url: printableUrl(url) }) });
     const processHooks = () => ({
       ci: isCiMode(env),
       env,
       notice: (message: string) => emit({ type: 'notice', target: 'app', message }),
-      starting: (label: string) => emit({ type: 'setup', step: { kind: 'app', label }, state: 'started' }),
-      ready: (label: string, durationMs: number, reused: boolean) =>
+      starting: (label: string, url: string | undefined) => emit({ type: 'setup', step: appStep(label, url), state: 'started' }),
+      ready: (label: string, url: string | undefined, durationMs: number, reused: boolean) =>
         emit({
           type: 'setup',
-          step: { kind: 'app', label },
+          step: appStep(label, url),
           state: 'finished',
           durationMs,
           ...(reused ? { outcome: 'reused' as const } : {}),
