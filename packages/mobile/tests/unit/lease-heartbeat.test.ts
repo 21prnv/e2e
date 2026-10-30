@@ -1,11 +1,11 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { startHeartbeat } from '../../src/heartbeat.ts';
+import { startHeartbeat } from '../../src/lease/heartbeat.ts';
 
 const mocks = vi.hoisted(() => ({ heartbeat: vi.fn(), create: vi.fn() }));
 vi.mock('agent-device', () => ({ createAgentDeviceClient: (config: unknown) => { mocks.create(config); return { leases: { heartbeat: mocks.heartbeat } }; } }));
 afterEach(() => { vi.useRealTimers(); vi.resetAllMocks(); });
 
-const scope = { tenant: 'testmu', runId: 'run', leaseId: 'lease-2', leaseBackend: 'android-instance' as const, leaseProvider: 'testmu' };
+const scope = { tenant: 'browserstack', runId: 'run', leaseId: 'lease-2', leaseBackend: 'android-instance' as const, leaseProvider: 'browserstack' };
 
 it("renews the lease on the lease's own daemon until stopped", async () => {
   vi.useFakeTimers();

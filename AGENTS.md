@@ -85,6 +85,10 @@ suites that consume the built packages the way a user would.
   The `@e2e-dev/mobile/tools` subpath holds the agent-side `open_app`, `swipe`,
   and `alert` tools; focused-field typing uses the engine's keyboard grammar.
   The main entry never loads the AI SDK.
+  The `@e2e-dev/mobile/lease` subpath holds the agent-device lease plumbing
+  device-cloud providers (`testmu`, `browserstack`) share: one daemon per
+  slot, heartbeat, and a release that fails unless the session end is
+  confirmed.
 - `packages/kernel` - the published `@e2e-dev/kernel` package: Kernel hosted
   browsers for the web engine. An official integration with a hosted service
   is one package per service, named after it (`@e2e-dev/<service>`), with the
@@ -154,6 +158,11 @@ suites that consume the built packages the way a user would.
   devices for the mobile engine (`DeviceProvider`), through agent-device's
   `@agent-device/testmu` plugin, and hosted Chrome and Edge for the web
   engine (`BrowserProvider`) from `@e2e-dev/testmu/web`.
+- `packages/browserstack` — the published `@e2e-dev/browserstack` package:
+  BrowserStack App Automate real Android and iOS devices for the mobile
+  engine (`DeviceProvider`), through agent-device's built-in `browserstack`
+  provider. An `https` `app` is uploaded once per run through the App
+  Automate API, since the session's `app` capability takes only `bs://` ids.
 - `apps/testbed` (`@e2e-dev/testbed`, private) — dogfood project that
   consumes the **built** packages like a real user would: the playground app
   where every runner feature (sessions, routes, downloads, frames, uploads,
